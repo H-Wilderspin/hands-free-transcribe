@@ -124,8 +124,8 @@ export class EnrollmentFlow {
 
     const profile: StoredSpeakerProfile = {
       id: `sp-${Date.now()}`,
-      name: 'Me',
-      color: '#9ca3af', // default grey pill
+      name: this.pickName(),
+      color: this.pickColor(),
       active: true,
       createdAt: Date.now(),
       referenceSamples: reference,
@@ -136,6 +136,18 @@ export class EnrollmentFlow {
 
     this.phase = 'idle';
     this.emit();
+  }
+
+  /** First profile is "Me" (grey); later ones get Speaker N + next palette color. */
+  private pickName(): string {
+    const count = useSpeakersStore.getState().profiles.length;
+    return count === 0 ? 'Me' : `Speaker ${count + 1}`;
+  }
+
+  private pickColor(): string {
+    const palette = ['#9ca3af', '#fbbf24', '#4ade80', '#22d3ee', '#60a5fa', '#a78bfa', '#f472b6', '#f87171'];
+    const count = useSpeakersStore.getState().profiles.length;
+    return palette[count % palette.length];
   }
 
   /** User-initiated abort (e.g. closing the panel mid-enrollment). */

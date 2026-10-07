@@ -51,6 +51,8 @@ export interface SpeakerEngine {
   embed(segment: Float32Array): Promise<Float32Array>;
   /** Cosine similarity of `embedding` against a stored voiceprint centroid. */
   verify(embedding: Float32Array, profileCentroid: Float32Array): number;
+  /** Release engine resources (optional — mock engines may not need it). */
+  close?(): Promise<void>;
 }
 
 // --- VAD --------------------------------------------------------------------

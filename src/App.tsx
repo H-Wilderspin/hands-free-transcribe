@@ -24,13 +24,35 @@ export default function App() {
   const pipelineRef = useRef<LivePipeline | null>(null);
 
   const micHot = useSettingsStore((s) => s.micHot);
+  const [paused, setPausedState] = useState(false);
 
-  // Wire the "command clear" voice command.
+  // Keep the paused indicator in sync (the pipeline is mutable via commands).
+  useEffect(() => {
+    const t = window.setInterval(() => {
+      setPausedState(pipelineRef.current?.isPaused ?? false);
+    }, 300);
+    return () => window.clearInterval(t);
+  }, []);
+
+  // Wire voice commands. Clear always works; pause/resume act on the live
+  // pipeline when it's running.
   useEffect(() => {
     registerCommand({
       phrase: 'clear',
       aliases: ['clear the text', 'clear screen'],
       run: () => useTranscriptStore.getState().clear(),
+    });
+    registerCommand({
+      phrase: 'pause',
+      aliases: ['pause transcription'],
+      run: () => {
+        if (pipelineRef.current?.isRunning) pipelineRef.current.setPaused(true);
+      },
+    });
+    registerCommand({
+      phrase: 'resume',
+      aliases: ['resume transcription'],
+      run: () => pipelineRef.current?.setPaused(false),
     });
   }, []);
 
@@ -121,10 +143,11 @@ export default function App() {
           onClick={toggleListening}
           title={pipelineRef.current?.isRunning ? 'Stop listening' : 'Start listening'}
         >
-          {micHot ? '■ stop' : '▶ listen'}
+          {micHot ? (paused ? '▶ resume' : '■ stop') : '▶ listen'}
         </button>
         <span className={`mic-indicator-pill ${micHot ? 'on' : ''}`}>
-          <span className={`pulse-dot ${micHot ? 'on' : ''}`} />
+          <span className={`pulse-dot ${micHot && !paused ? 'on' : ''}`} />
+          {paused ? ' paused' : ''}
         </span>
         <button className="settings-btn" onClick={togglePanel} title="Settings">
           ⚙

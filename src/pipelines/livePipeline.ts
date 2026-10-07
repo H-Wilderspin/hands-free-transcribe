@@ -29,10 +29,12 @@ export interface LivePipelineDeps {
 export class LivePipeline {
   private deps: LivePipelineDeps;
   private running = false;
+  private paused = false; // voice-controlled: keep mic hot, halt rendering
   private vad: VadEngine | null = null;
   private asrStream: Awaited<ReturnType<AsrEngine['createStream']>> | null = null;
   private pollTimer: number | null = null;
   private lastSpeechAt = Date.now();
+  private speakerEngine: SpeakerEngine | null = null; // cached: worker boot is expensive
 
   constructor(deps: LivePipelineDeps) {
     this.deps = deps;
@@ -40,6 +42,16 @@ export class LivePipeline {
 
   get isRunning(): boolean {
     return this.running;
+  }
+
+  /** Voice-command surface: pause rendering, keep mic hot. */
+  setPaused(p: boolean): void {
+    this.paused = p;
+    if (p) useTranscriptStore.getState().clearPartial();
+  }
+
+  get isPaused(): boolean {
+    return this.paused;
   }
 
   async start(): Promise<void> {
@@ -51,6 +63,8 @@ export class LivePipeline {
     this.asrStream = asrEngine.createStream();
 
     await this.deps.mic.start((samples) => {
+      // While paused, keep VAD fed (commands must still work) — the pause
+      // gate applies at render/commit time, so audio is still processed.
       void vad.accept(samples).then(() => vad.drainSegments()).then((segments) => {
         for (const seg of segments) {
           void this.handleSegment(seg);
@@ -69,6 +83,7 @@ export class LivePipeline {
 
   private async pollOnce(): Promise<void> {
     if (!this.asrStream || !this.running) return;
+    if (this.paused) return; // mic stays hot; rendering/decoding paused
     try {
       const { partial, final } = await this.asrStream.poll();
       if (final !== null) {
@@ -113,18 +128,23 @@ export class LivePipeline {
     this.asrStream = null;
     void this.vad?.close();
     this.vad = null;
+    void this.speakerEngine?.close?.();
+    this.speakerEngine = null;
     this.deps.mic.stop();
     useSettingsStore.getState().setMicHot(false);
   }
 
   private async handleSegment(seg: SpeechSegment): Promise<void> {
-    if (!this.running) return;
+    if (!this.running || this.paused) return;
 
     const profiles = this.deps.getProfiles();
     if (profiles.length === 0) return;
 
     // Plan B verify: compare against each active profile's reference audio.
-    const speakerEngine = await this.deps.speaker();
+    // The speaker engine (a 44MB-model worker) is created once per pipeline
+    // run and reused, not per segment.
+    if (!this.speakerEngine) this.speakerEngine = await this.deps.speaker();
+    const speakerEngine = this.speakerEngine;
     let bestId: string | null = null;
     let bestScore = 0;
 
@@ -161,14 +181,18 @@ export class LivePipeline {
   }
 
   private async transcribe(seg: SpeechSegment): Promise<string> {
-    // Offline decode of the whole segment in its own stream (Plan B latency
-    // model: verification already ran; transcription is one decode pass).
+    // Per-segment decode in its own stream. Trailing silence (1s) is appended
+    // to trip the endpoint detector (rule1: 2.4s trailing silence is checked
+    // against accumulated audio; combined with 0.5s minSilence VAD padding,
+    // 1s of zeros reliably finalizes the utterance) so short segments aren't
+    // dropped as perpetually-partial.
     const asrEngine = await this.deps.asr();
     const stream = asrEngine.createStream();
     stream.accept(seg.samples);
+    stream.accept(new Float32Array(16000)); // 1s trailing silence
     let partial = '';
     let final: string | null = null;
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 10; i++) {
       const r = await stream.poll();
       partial = r.partial || partial;
       if (r.final !== null) {

@@ -13,6 +13,13 @@ export async function saveProfile(p: StoredSpeakerProfile): Promise<void> {
   await set(PROFILE_PREFIX + p.id, p);
 }
 
+/** Merge-save: read the stored profile, apply the patch, persist. */
+export async function updateProfile(id: string, patch: Partial<Omit<StoredSpeakerProfile, 'id'>>): Promise<void> {
+  const existing = await get<StoredSpeakerProfile>(PROFILE_PREFIX + id);
+  if (!existing) throw new Error(`no profile ${id} in IndexedDB`);
+  await set(PROFILE_PREFIX + id, { ...existing, ...patch, id });
+}
+
 export async function loadProfiles(): Promise<StoredSpeakerProfile[]> {
   const allKeys = await keys();
   const profileKeys = allKeys
