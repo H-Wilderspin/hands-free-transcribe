@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>VAD engine smoke test</title>
+    <style>
+      body { background: #0b0e14; color: #e5e7eb; font-family: monospace; padding: 20px; }
+      #out { white-space: pre-wrap; }
+      .ok { color: #22c55e; }
+      .fail { color: #ef4444; }
+    </style>
+  </head>
+  <body>
+    <div id="out">booting vad worker…</div>
+    <script>
+      const out = document.getElementById('out');
+      const log = (msg, cls) => {
+        out.textContent += '\n' + msg;
+        if (cls) out.className = cls;
+      };
+
+      (async () => {
+        try {
+          const worker = new Worker('/sherpa/workers/vadWorker.js');
+          const init = new Promise((resolve, reject) => {
+            worker.onmessage = (e) => {
+              if (e.data.id === 1) {
+                e.data.ok ? resolve(e.data.payload) : reject(new Error(e.data.error));
+              }
+            };
+          });
+          worker.postMessage({ id: 1, type: 'init' });
+          await init;
+          log('VAD worker initialized OK', 'ok');
+
+          // Feed 3 seconds of silence then confirm no segments; then a synthetic
+          // speech-like burst (white noise is not speech but exercises the path).
+          const silence = new Float32Array(16000 * 3);
+          worker.postMessage({ id: 2, type: 'accept', payload: { samples: silence } });
+          const drained = await new Promise((resolve) => {
+            worker.onmessage = (e) => { if (e.data.id === 2) resolve(e.data); };
+          });
+          log('silence accept OK, no error', 'ok');
+
+          const noise = Float32Array.from({ length: 16000 * 2 }, () => (Math.random() * 2 - 1) * 0.3);
+          worker.postMessage({ id: 3, type: 'accept', payload: { samples: noise } });
+          const drained2 = await new Promise((resolve) => {
+            worker.onmessage = (e) => { if (e.data.id === 3) resolve(e.data); };
+          });
+          log('noise accept OK', 'ok');
+
+          worker.postMessage({ id: 4, type: 'drain' });
+          const drained3 = await new Promise((resolve) => {
+            worker.onmessage = (e) => { if (e.data.id === 4) resolve(e.data); };
+          });
+          log(`drain returned ${drained3.ok ? drained3.payload.segments.length : 'ERROR: ' + drained3.error} segments`, 'ok');
+
+          log('SMOKE TEST PASSED', 'ok');
+        } catch (err) {
+          log('FAIL: ' + err.message, 'fail');
+        }
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Hands-free Transcribe</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <!--
+      sherpa-onnx wasm engines each boot inside their own dedicated Web Worker
+      (see src/engine/sherpa/workers/*) via importScripts of the vendored glue
+      + main scripts in /sherpa/. Loading all three main scripts on the main
+      thread would clash over the shared global `Module`.
+    -->
+  </body>
+</html>

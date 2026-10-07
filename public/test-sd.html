@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Speaker engine smoke test</title>
+    <style>
+      body { background: #0b0e14; color: #e5e7eb; font-family: monospace; padding: 20px; }
+      #out { white-space: pre-wrap; }
+      .ok { color: #22c55e; }
+      .fail { color: #ef4444; }
+    </style>
+  </head>
+  <body>
+    <div id="out">booting sd worker… (44MB models, be patient)</div>
+    <script>
+      const out = document.getElementById('out');
+      const log = (msg, cls) => {
+        out.textContent += '\n' + msg;
+        if (cls) out.className = cls;
+      };
+
+      (async () => {
+        try {
+          const worker = new Worker('/sherpa/workers/sdWorker.js');
+          const once = (id) => new Promise((resolve, reject) => {
+            worker.onmessage = (e) => {
+              if (e.data.id === id) {
+                e.data.ok ? resolve(e.data.payload) : reject(new Error(e.data.error));
+              }
+            };
+          });
+
+          log('sending init…');
+          worker.postMessage({ id: 1, type: 'init' });
+          await once(1);
+          log('SD worker initialized OK (models loaded)', 'ok');
+
+          // Verify with two synthetic audio buffers: white noise vs sine tone.
+          // These are NOT speech, but exercise the diarization path end-to-end.
+          const noise = Float32Array.from({ length: 16000 * 2 }, () => (Math.random() * 2 - 1) * 0.3);
+          const tone = Float32Array.from({ length: 16000 * 2 }, (_, i) => Math.sin((2 * Math.PI * 220 * i) / 16000) * 0.3);
+
+          const noiseCopy1 = noise.slice();
+          worker.postMessage({ id: 2, type: 'verify', payload: { segment: noiseCopy1, reference: noise.slice() } }, [noiseCopy1.buffer]);
+          const same = await once(2);
+          log(`noise vs same noise => score ${same.score}`, 'ok');
+
+          const tone2 = tone.slice();
+          worker.postMessage({ id: 3, type: 'verify', payload: { segment: tone2, reference: noise.slice() } }, [tone2.buffer]);
+          const diff = await once(3);
+          log(`tone vs noise => score ${diff.score}`, 'ok');
+
+          log('SMOKE TEST PASSED', 'ok');
+        } catch (err) {
+          log('FAIL: ' + err.message, 'fail');
+        }
+      })();
+    </script>
+  </body>
+</html>

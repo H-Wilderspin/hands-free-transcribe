@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>ASR engine smoke test</title>
+    <style>
+      body { background: #0b0e14; color: #e5e7eb; font-family: monospace; padding: 20px; }
+      #out { white-space: pre-wrap; }
+      .ok { color: #22c55e; }
+      .fail { color: #ef4444; }
+    </style>
+  </head>
+  <body>
+    <div id="out">booting asr worker… (182MB model download, be patient)</div>
+    <script>
+      const out = document.getElementById('out');
+      const log = (msg, cls) => {
+        out.textContent += '\n' + msg;
+        if (cls) out.className = cls;
+      };
+
+      (async () => {
+        try {
+          const worker = new Worker('/sherpa/workers/asrWorker.js');
+          const once = (id) => new Promise((resolve, reject) => {
+            worker.onmessage = (e) => {
+              if (e.data.id === id) {
+                e.data.ok ? resolve(e.data.payload) : reject(new Error(e.data.error));
+              }
+            };
+          });
+
+          log('sending init…');
+          worker.postMessage({ id: 1, type: 'init' });
+          await once(1);
+          log('ASR worker initialized OK (model loaded)', 'ok');
+
+          worker.postMessage({ id: 2, type: 'createStream' });
+          await once(2);
+          log('stream created', 'ok');
+
+          // Feed 1s of silence; poll for partial (should be empty).
+          worker.postMessage({ id: 3, type: 'accept', payload: { samples: new Float32Array(16000) } });
+          await once(3);
+          worker.postMessage({ id: 4, type: 'poll' });
+          const r = await once(4);
+          log(`silence poll => partial:"${r.partial}" final:${r.final}`, 'ok');
+
+          log('SMOKE TEST PASSED', 'ok');
+        } catch (err) {
+          log('FAIL: ' + err.message, 'fail');
+        }
+      })();
+    </script>
+  </body>
+</html>
