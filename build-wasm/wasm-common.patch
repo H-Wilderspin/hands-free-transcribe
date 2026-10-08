@@ -1,0 +1,27 @@
+﻿diff --git a/wasm/wasm-common.cmake b/wasm/wasm-common.cmake
+index 85d5a20..8b6ad10 100644
+--- a/wasm/wasm-common.cmake
++++ b/wasm/wasm-common.cmake
+@@ -87,6 +87,22 @@ set(exported_functions
+   SherpaOnnxOfflineSpeakerDiarizationResultGetNumSegments
+   SherpaOnnxOfflineSpeakerDiarizationResultSortByStartTime
+   SherpaOnnxOfflineSpeakerDiarizationSetConfig
++  # Speaker embedding (custom addition: enables voiceprint extraction in the
++  # browser — powers fast enrollment + live speaker verification)
++  SherpaOnnxCreateSpeakerEmbeddingExtractor
++  SherpaOnnxDestroySpeakerEmbeddingExtractor
++  SherpaOnnxSpeakerEmbeddingExtractorDim
++  SherpaOnnxSpeakerEmbeddingExtractorCreateStream
++  SherpaOnnxSpeakerEmbeddingExtractorIsReady
++  SherpaOnnxSpeakerEmbeddingExtractorComputeEmbedding
++  SherpaOnnxSpeakerEmbeddingExtractorDestroyEmbedding
++  SherpaOnnxCreateSpeakerEmbeddingManager
++  SherpaOnnxDestroySpeakerEmbeddingManager
++  SherpaOnnxSpeakerEmbeddingManagerVerify
++  SherpaOnnxSpeakerEmbeddingManagerGetEmbedding
++  SherpaOnnxSpeakerEmbeddingManagerDestroyEmbedding
++  SherpaOnnxSpeakerEmbeddingManagerNumSpeakers
++  SherpaOnnxSpeakerEmbeddingManagerDim
+   #
+   SherpaOnnxFileExists
+   SherpaOnnxReadWave

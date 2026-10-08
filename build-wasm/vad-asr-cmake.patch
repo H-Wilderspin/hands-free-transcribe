@@ -1,0 +1,27 @@
+﻿diff --git a/wasm/vad-asr/CMakeLists.txt b/wasm/vad-asr/CMakeLists.txt
+index e4728ce..f056dd7 100644
+--- a/wasm/vad-asr/CMakeLists.txt
++++ b/wasm/vad-asr/CMakeLists.txt
+@@ -40,6 +40,22 @@ set(exported_functions
+   SherpaOnnxDestroyOfflineStreamResultJson
+   SherpaOnnxGetOfflineStreamResult
+   SherpaOnnxGetOfflineStreamResultAsJson
++  # Speaker embedding (custom addition: enables voiceprint extraction in the
++  # browser — powers fast enrollment + live speaker verification)
++  SherpaOnnxCreateSpeakerEmbeddingExtractor
++  SherpaOnnxDestroySpeakerEmbeddingExtractor
++  SherpaOnnxSpeakerEmbeddingExtractorDim
++  SherpaOnnxSpeakerEmbeddingExtractorCreateStream
++  SherpaOnnxSpeakerEmbeddingExtractorIsReady
++  SherpaOnnxSpeakerEmbeddingExtractorComputeEmbedding
++  SherpaOnnxSpeakerEmbeddingExtractorDestroyEmbedding
++  SherpaOnnxCreateSpeakerEmbeddingManager
++  SherpaOnnxDestroySpeakerEmbeddingManager
++  SherpaOnnxSpeakerEmbeddingManagerVerify
++  SherpaOnnxSpeakerEmbeddingManagerGetEmbedding
++  SherpaOnnxSpeakerEmbeddingManagerDestroyEmbedding
++  SherpaOnnxSpeakerEmbeddingManagerNumSpeakers
++  SherpaOnnxSpeakerEmbeddingManagerDim
+   #
+   SherpaOnnxFileExists
+ )
