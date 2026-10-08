@@ -11,9 +11,9 @@ requires JDK 17 + Android SDK (see `docs/android-notes.md`).
 
 ## Quick start
 
-```powershell
+```bash
 npm install
-powershell -File scripts\download-models.ps1   # one-time: fetch wasm + models (~215MB)
+bash scripts/download-models.sh   # one-time: fetch wasm + models (~215MB)
 npm run dev
 ```
 
@@ -70,17 +70,17 @@ Open http://localhost:5173, allow mic access when prompted.
 
 ## Setup on a new machine
 
-```powershell
+```bash
 npm install
-powershell -File scripts\download-models.ps1   # ~250MB wasm + models, one-time
+bash scripts/download-models.sh   # ~250MB wasm + models, one-time
 npm run dev
 ```
 
 Tests (need the dev server running):
 
-```powershell
-node tests\vad-smoke.mjs
-node tests\asr-smoke.mjs   # downloads/loads the 182MB ASR model
-node tests\sd-smoke.mjs
-node tests\ui-e2e.mjs      # pill edit/persist/delete flows
+```bash
+node tests/vad-smoke.mjs
+node tests/asr-smoke.mjs   # downloads/loads the 182MB ASR model
+node tests/sd-smoke.mjs
+node tests/ui-e2e.mjs      # pill edit/persist/delete flows
 ```

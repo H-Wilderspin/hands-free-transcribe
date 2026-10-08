@@ -8,51 +8,62 @@ embedding computation and live speaker verification ~50–100ms per segment,
 replacing the Plan-B diarization oracle (~1–3s per segment, re-processing
 the whole reference audio every time).
 
+All commands below are **bash** (Git Bash on Windows).
+
 ## What's in here
 
 | File | Purpose |
 |---|---|
 | `vad-asr-cmake.patch` | Adds the 14 embedding APIs to the vad-asr module's export list |
 | `wasm-common.patch` | Same addition for the shared export list (kept for completeness) |
-| `prepare-build-assets.ps1` | Downloads + stages model files with canonical names |
+| `prepare-build-assets.sh` | Downloads + stages model files with canonical names |
+| `fetch-build-deps.sh` | Pre-fetches + hash-verifies all dependency tarballs to `~/Downloads` |
 | `build-plan-a.sh` | Runs cmake+ninja against emsdk |
-| `stage-plan-a-output.ps1` | Copies build output into the app's `public/sherpa/` |
+| `stage-plan-a-output.sh` | Copies build output into the app's `public/sherpa/` |
 
 ## One-time setup on a build machine
 
-```powershell
+```bash
 # 1. emsdk (the exact version matters — sherpa-onnx pins 4.0.23)
-git clone https://github.com/emscripten-core/emsdk.git
-cd emsdk
-.\emsdk.bat install 4.0.23
-.\emsdk.bat activate 4.0.23
-cd ..
+#    Put it OUTSIDE the project; anywhere is fine, e.g. /c/dev/emsdk
+git clone https://github.com/emscripten-core/emsdk.git /c/dev/emsdk
+cd /c/dev/emsdk
+./emsdk.bat install 4.0.23          # or: ./emsdk install 4.0.23 in Git Bash
+./emsdk.bat activate 4.0.23
+source ./emsdk_env.sh               # makes EMSCRIPTEN + emcc available
 
-# 2. cmake + ninja (or use portable zips from GitHub releases)
+# 2. cmake + ninja (Git Bash)
 winget install Kitware.CMake Ninja-build.Ninja
+# ...or download portable zips from GitHub releases and add their bin/ to PATH
 
-# 3. dependency tarballs (hash-verified, cached to ~/Downloads)
-powershell -File ..\scripts\fetch-build-deps.ps1
+# 3. Suggested workspace layout (all outside the app repo):
+#   /c/dev/emsdk          <- emsdk
+#   /c/dev/sherpa-onnx    <- source clone
+#   /c/dev/hands-free-transcribe  <- the app (git clone)
 ```
 
 ## Per-build flow
 
 ```bash
-# clone sherpa-onnx (any recent master; v1.13.x era is fine)
+cd /c/dev
 git clone --depth 1 https://github.com/k2-fsa/sherpa-onnx.git
 cd sherpa-onnx
-git apply <path-to-app-repo>\build-wasm\vad-asr-cmake.patch
 
-# stage model assets (from the app repo)
-powershell -File ..\build-wasm\prepare-build-assets.ps1 .
+# apply the export-list patch
+git apply /c/dev/hands-free-transcribe/build-wasm/vad-asr-cmake.patch
 
-# build (from Git Bash, with emsdk env sourced)
-source <emsdk-path>\emsdk_env.sh
-EMSCRIPTEN=<emsdk-path>\upstream\emscripten bash <app-repo>\build-wasm\build-plan-a.sh .
+# stage model assets + prefetch dependency tarballs
+bash /c/dev/hands-free-transcribe/build-wasm/prepare-build-assets.sh .
+bash /c/dev/hands-free-transcribe/build-wasm/fetch-build-deps.sh .
 
-# stage the output into the app
-cd ..
-powershell -File build-wasm\stage-plan-a-output.ps1 sherpa-onnx
+# build (emsdk env must be sourced — re-run `source /c/dev/emsdk/emsdk_env.sh`
+# in each new shell)
+export EMSCRIPTEN=/c/dev/emsdk/upstream/emscripten
+bash /c/dev/hands-free-transcribe/build-wasm/build-plan-a.sh .
+
+# stage the built artifacts into the app
+cd /c/dev
+bash hands-free-transcribe/build-wasm/stage-plan-a-output.sh sherpa-onnx
 ```
 
 ## Verification
@@ -60,8 +71,10 @@ powershell -File build-wasm\stage-plan-a-output.ps1 sherpa-onnx
 After staging, run the app's smoke tests — the embedding worker boots the
 custom module and extracts an embedding from synthetic audio:
 
-```
-node tests\embed-smoke.mjs
+```bash
+cd /c/dev/hands-free-transcribe
+npm run dev            # in one shell
+node tests/embed-smoke.mjs   # in another
 ```
 
 Then re-run the app: enrollment should be near-instant and live
@@ -74,4 +87,7 @@ transcription latency should drop to ~1s per utterance.
   freshly extracted files. Workaround: build on the other laptop.
 - Dependency tarballs are fetched to `~/Downloads` where CMake's
   `possible_file_locations` checks first; names must match what each
-  `.cmake` file expects (see `fetch-build-deps.ps1`).
+  `.cmake` file expects (see `fetch-build-deps.sh`).
+- If CMake extraction still fails on a given dep, extract the tarball
+  manually into `build-wasm-simd-vad-asr/_deps/` and pass
+  `-DFETCHCONTENT_SOURCE_DIR_<DEP_UPPER>=<path>` to cmake.
