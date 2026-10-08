@@ -26,9 +26,9 @@ export class EngineWorker {
   private onMessageExternal: ((msg: { type: string; payload: unknown }) => void) | null = null;
 
   constructor(kind: string) {
-    // Classic workers live in public/sherpa/workers/ (importScripts-capable,
-    // loaded as-is by Vite static serving).
-    this.worker = new Worker(`/sherpa/workers/${kind}Worker.js`);
+    // Classic workers live in public/workers/ (committed source, outside the
+    // gitignored public/sherpa/ artifact dir) — served as-is by Vite.
+    this.worker = new Worker(`/workers/${kind}Worker.js`);
     this.worker.onmessage = (e: MessageEvent) => {
       const msg = e.data as WorkerResponse & { type?: string; payload?: unknown };
       if (msg.id && this.pending.has(msg.id)) {

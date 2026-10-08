@@ -1,4 +1,4 @@
-// Diagnose ASR worker boot: capture console + network, report every 10s.
+﻿// Diagnose ASR worker boot: capture console + network, report every 10s.
 import { chromium } from 'playwright';
 
 const browser = await chromium.launch();

@@ -1,4 +1,4 @@
-// E2E smoke test: boots the VAD worker in a real Chromium and verifies
+﻿// E2E smoke test: boots the VAD worker in a real Chromium and verifies
 // init/accept/drain work with real wasm. Run: node tests/vad-smoke.mjs
 import { chromium } from 'playwright';
 

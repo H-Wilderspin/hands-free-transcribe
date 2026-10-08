@@ -11,13 +11,10 @@ import { MicCaptureImpl, type MicCapture } from './audio/capture';
 import { EnrollmentFlow } from './flows/enrollment';
 import { LivePipeline } from './pipelines/livePipeline';
 
-const USE_REAL_ENGINES = true; // flip to false for UI-only dev with mocks
-
 export default function App() {
   const togglePanel = useSettingsStore((s) => s.togglePanel);
 
   const [engineError, setEngineError] = useState<string | null>(null);
-  const [enginesReady, setEnginesReady] = useState(false);
 
   const micRef = useRef<MicCapture | null>(null);
   const enrollmentRef = useRef<EnrollmentFlow | null>(null);
@@ -64,15 +61,9 @@ export default function App() {
     })();
   }, []);
 
-  // Initialize engines (deferred: only needed once profiles exist or user acts).
-  useEffect(() => {
-    if (!USE_REAL_ENGINES) {
-      setEnginesReady(true);
-      return;
-    }
-    // Engines are heavy (80+ MB); boot lazily on first use, not at startup.
-    setEnginesReady(true); // UI shell is usable immediately
-  }, []);
+  // Engines are heavy (80+ MB): booted lazily by the pipeline/enrollment
+  // factories on first use, so the UI shell is usable immediately.
+  const enginesReady = true;
 
   const toggleListening = async () => {
     const store = useSettingsStore.getState();
