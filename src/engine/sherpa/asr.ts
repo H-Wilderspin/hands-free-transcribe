@@ -1,7 +1,13 @@
 // Streaming ASR engine backed by the sherpa-onnx ASR worker.
+//
+// The worker supports multiple named streams; the live pipeline holds a
+// persistent stream (for word-level partials) while per-segment decodes use
+// short-lived uniquely-named streams.
 
 import { type AsrEngine, type AsrStream, type AsrResult, type EngineAssets } from '../types';
 import { EngineWorker } from './engineWorker';
+
+let streamCounter = 0;
 
 export async function createSherpaAsrEngine(_assets: EngineAssets): Promise<AsrEngine> {
   const worker = new EngineWorker('asr');
@@ -10,8 +16,10 @@ export async function createSherpaAsrEngine(_assets: EngineAssets): Promise<AsrE
   return {
     async init(): Promise<void> {},
     createStream(): AsrStream {
+      const name = `s${++streamCounter}`;
       let buffer: Float32Array[] = [];
       let closed = false;
+      void worker.call('createStream', { name });
 
       return {
         accept(samples: Float32Array) {
@@ -29,19 +37,23 @@ export async function createSherpaAsrEngine(_assets: EngineAssets): Promise<AsrE
               off += c.length;
             }
             buffer = [];
-            await worker.call('accept', { samples: merged }, [merged.buffer]);
+            await worker.call('accept', { name, samples: merged }, [merged.buffer]);
           }
-          return (await worker.call('poll')) as AsrResult;
+          return (await worker.call('poll', { name })) as AsrResult;
         },
         reset() {
           buffer = [];
-          void worker.call('reset');
+          void worker.call('reset', { name });
         },
         close() {
           closed = true;
-          void worker.call('close');
+          void worker.call('close', { name });
         },
       };
+    },
+    async close(): Promise<void> {
+      await worker.call('closeAll').catch(() => undefined);
+      worker.terminate();
     },
   };
 }

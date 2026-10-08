@@ -1,7 +1,9 @@
 // ASR worker: boots the vendored sherpa-onnx ASR wasm and serves
-// createStream/accept/poll/reset/close requests. One stream at a time.
+// createStream/accept/poll/reset/close requests. Supports multiple named
+// streams: the live pipeline holds a persistent stream while per-segment
+// decodes use their own short-lived streams.
 //
-// Classic worker (importScripts-capable). Loaded from /sherpa/workers/.
+// Classic worker (importScripts-capable). Loaded from /workers/.
 
 'use strict';
 
@@ -9,10 +11,11 @@ importScripts('/sherpa/sherpa-onnx-asr.js');
 
 let mod = null;
 let recognizer = null;
-let stream = null;
+const streams = new Map(); // name -> sherpa stream
 
 function handle(msg) {
-  const { id, type } = msg;
+  const { id, type, payload } = msg;
+  const name = payload?.name ?? 'default';
   try {
     switch (type) {
       case 'init': {
@@ -58,22 +61,25 @@ function handle(msg) {
       }
       case 'createStream': {
         if (!recognizer) throw new Error('ASR engine not initialized');
-        if (stream) {
-          try { stream.free(); } catch { /* already freed */ }
+        const old = streams.get(name);
+        if (old) {
+          try { old.free(); } catch { /* already freed */ }
         }
-        stream = recognizer.createStream();
+        streams.set(name, recognizer.createStream());
         postMessage({ id, ok: true, payload: {} });
         break;
       }
       case 'accept': {
-        if (!stream) throw new Error('no active stream');
-        stream.acceptWaveform(16000, msg.payload.samples);
+        const stream = streams.get(name);
+        if (!stream) throw new Error(`no active stream: ${name}`);
+        stream.acceptWaveform(16000, payload.samples);
         while (recognizer.isReady(stream)) recognizer.decode(stream);
         postMessage({ id, ok: true, payload: {} });
         break;
       }
       case 'poll': {
-        if (!stream) throw new Error('no active stream');
+        const stream = streams.get(name);
+        if (!stream) throw new Error(`no active stream: ${name}`);
         const text = recognizer.getResult(stream).text;
         if (recognizer.isEndpoint(stream)) {
           recognizer.reset(stream);
@@ -84,15 +90,25 @@ function handle(msg) {
         break;
       }
       case 'reset': {
-        if (!stream) throw new Error('no active stream');
+        const stream = streams.get(name);
+        if (!stream) throw new Error(`no active stream: ${name}`);
         recognizer.reset(stream);
         postMessage({ id, ok: true, payload: {} });
         break;
       }
       case 'close': {
+        const stream = streams.get(name);
         if (stream) {
           stream.free();
-          stream = null;
+          streams.delete(name);
+        }
+        postMessage({ id, ok: true, payload: {} });
+        break;
+      }
+      case 'closeAll': {
+        for (const [n, s] of streams) {
+          try { s.free(); } catch { /* already freed */ }
+          streams.delete(n);
         }
         postMessage({ id, ok: true, payload: {} });
         break;

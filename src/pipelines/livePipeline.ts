@@ -35,6 +35,8 @@ export class LivePipeline {
   private pollTimer: number | null = null;
   private lastSpeechAt = Date.now();
   private speakerEngine: SpeakerEngine | null = null; // cached: worker boot is expensive
+  private asrEngine: AsrEngine | null = null; // cached: worker boot is expensive
+  private segmentDecodeSeq = 0; // serialization for per-segment decodes
 
   constructor(deps: LivePipelineDeps) {
     this.deps = deps;
@@ -60,6 +62,7 @@ export class LivePipeline {
     const vad = await this.deps.vad();
     this.vad = vad;
     const asrEngine = await this.deps.asr();
+    this.asrEngine = asrEngine;
     this.asrStream = asrEngine.createStream();
 
     await this.deps.mic.start((samples) => {
@@ -126,6 +129,8 @@ export class LivePipeline {
     }
     this.asrStream?.close();
     this.asrStream = null;
+    void this.asrEngine?.close?.();
+    this.asrEngine = null;
     void this.vad?.close();
     this.vad = null;
     void this.speakerEngine?.close?.();
@@ -181,13 +186,16 @@ export class LivePipeline {
   }
 
   private async transcribe(seg: SpeechSegment): Promise<string> {
-    // Per-segment decode in its own stream. Trailing silence (1s) is appended
-    // to trip the endpoint detector (rule1: 2.4s trailing silence is checked
-    // against accumulated audio; combined with 0.5s minSilence VAD padding,
-    // 1s of zeros reliably finalizes the utterance) so short segments aren't
-    // dropped as perpetually-partial.
-    const asrEngine = await this.deps.asr();
-    const stream = asrEngine.createStream();
+    // Per-segment decode in its own uniquely-named stream (the worker's live
+    // stream is untouched). Trailing silence (1s) is appended to trip the
+    // endpoint detector (rule1: 2.4s trailing silence is checked against
+    // accumulated audio; combined with 0.5s minSilence VAD padding, 1s of
+    // zeros reliably finalizes the utterance) so short segments aren't
+    // dropped as perpetually-partial. Decodes are serialized per pipeline to
+    // keep the worker's decode loop deterministic.
+    const asrEngine = this.asrEngine ?? (await this.deps.asr());
+    const name = `seg${++this.segmentDecodeSeq}`;
+    const stream = asrEngine.createStream(name);
     stream.accept(seg.samples);
     stream.accept(new Float32Array(16000)); // 1s trailing silence
     let partial = '';

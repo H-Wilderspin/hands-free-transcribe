@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>ASR multi-stream test</title>
+    <style>
+      body { background: #0b0e14; color: #e5e7eb; font-family: monospace; padding: 20px; }
+      #out { white-space: pre-wrap; }
+      .ok { color: #22c55e; }
+      .fail { color: #ef4444; }
+    </style>
+  </head>
+  <body>
+    <div id="out">testing multi-stream…</div>
+    <script>
+      const out = document.getElementById('out');
+      const log = (msg, cls) => {
+        out.textContent += '\n' + msg;
+        if (cls) out.className = cls;
+      };
+
+      (async () => {
+        try {
+          const worker = new Worker('/workers/asrWorker.js');
+          let nextId = 1;
+          const pending = new Map();
+          worker.onmessage = (e) => {
+            const p = pending.get(e.data.id);
+            if (p) { pending.delete(e.data.id); p(e.data); }
+          };
+          const call = (type, payload, transfer) => new Promise((resolve) => {
+            const id = nextId++;
+            pending.set(id, resolve);
+            worker.postMessage({ id, type, payload }, transfer ?? []);
+          });
+
+          await call('init');
+          log('initialized', 'ok');
+
+          // Live stream: named "live"
+          await call('createStream', { name: 'live' });
+          // Segment stream: named "seg1" — must NOT clobber "live"
+          await call('createStream', { name: 'seg1' });
+
+          // Feed silence to both, poll both.
+          const silence = new Float32Array(16000);
+          await call('accept', { name: 'live', samples: silence.slice() }, []);
+          await call('accept', { name: 'seg1', samples: silence.slice() }, []);
+          const r1 = await call('poll', { name: 'live' });
+          const r2 = await call('poll', { name: 'seg1' });
+          log(`live poll ok (partial:"${r1.payload.partial}")`, 'ok');
+          log(`seg1 poll ok (partial:"${r2.payload.partial}")`, 'ok');
+
+          // Close seg1, then poll live again — the old bug would have freed "live" here.
+          await call('close', { name: 'seg1' });
+          await call('accept', { name: 'live', samples: silence.slice() }, []);
+          const r3 = await call('poll', { name: 'live' });
+          log(`live poll after seg close ok (partial:"${r3.payload.partial}")`, 'ok');
+
+          // Poll a closed/unknown stream => error path works
+          const r4 = await call('poll', { name: 'never-created' });
+          if (r4.ok) throw new Error('poll on unknown stream should have failed');
+          log(`unknown-stream poll correctly errored: "${r4.error}"`, 'ok');
+
+          log('MULTI-STREAM TEST PASSED', 'ok');
+        } catch (err) {
+          log('FAIL: ' + err.message, 'fail');
+        }
+      })();
+    </script>
+  </body>
+</html>

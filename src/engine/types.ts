@@ -32,7 +32,10 @@ export interface AsrStream {
 
 export interface AsrEngine {
   init(assets: EngineAssets): Promise<void>;
-  createStream(): AsrStream;
+  /** Create a decode stream; `name` lets the worker hold multiple streams. */
+  createStream(name?: string): AsrStream;
+  /** Release all streams + the engine (optional). */
+  close?(): Promise<void>;
 }
 
 // --- Speaker identification -------------------------------------------------
