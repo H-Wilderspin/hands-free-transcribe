@@ -63,7 +63,7 @@ bash C:/Users/hazel.wilderspin/source/hands-free-transcribe/build-wasm/build-pla
 
 # stage the built artifacts into the app
 cd C:/Users/hazel.wilderspin/source/hands-free-transcribe
-bash hands-free-transcribe/build-wasm/stage-plan-a-output.sh sherpa-onnx
+bash build-wasm/stage-plan-a-output.sh ../sherpa-onnx
 ```
 
 ## Verification

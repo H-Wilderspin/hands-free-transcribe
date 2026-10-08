@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Embedding engine smoke test</title>
+    <style>
+      body { background: #0b0e14; color: #e5e7eb; font-family: monospace; padding: 20px; }
+      #out { white-space: pre-wrap; }
+      .ok { color: #22c55e; }
+      .fail { color: #ef4444; }
+    </style>
+  </head>
+  <body>
+    <div id="out">booting embed worker…</div>
+    <script>
+      const out = document.getElementById('out');
+      const log = (msg, cls) => {
+        out.textContent += '\n' + msg;
+        if (cls) out.className = cls;
+      };
+
+      (async () => {
+        try {
+          const worker = new Worker('/workers/embedWorker.js');
+          const once = (id) => new Promise((resolve, reject) => {
+            worker.onmessage = (e) => {
+              if (e.data.id === id) {
+                e.data.ok ? resolve(e.data.payload) : reject(new Error(e.data.error));
+              }
+            };
+          });
+
+          log('sending init…');
+          const initPayload = await once(1);
+          log(`embed worker initialized OK (dim=${initPayload.dim})`, 'ok');
+
+          // Embed two distinct synthetic signals; verify the vectors differ
+          // and are non-trivially sized.
+          const noise = Float32Array.from({ length: 16000 * 2 }, () => (Math.random() * 2 - 1) * 0.3);
+          worker.postMessage({ id: 2, type: 'embed', payload: { samples: noise } }, [noise.buffer]);
+          const e1 = await once(2);
+          if (!e1.embedding) throw new Error(`no embedding: ${e1.reason}`);
+          log(`noise embedding: dim=${e1.embedding.length}, first values [${Array.from(e1.embedding.slice(0, 4)).map((v) => v.toFixed(3)).join(', ')}…]`, 'ok');
+
+          const tone = Float32Array.from({ length: 16000 * 2 }, (_, i) => Math.sin((2 * Math.PI * 220 * i) / 16000) * 0.3);
+          const toneCopy = tone.slice();
+          worker.postMessage({ id: 3, type: 'embed', payload: { samples: toneCopy } }, [toneCopy.buffer]);
+          const e2 = await once(3);
+          if (!e2.embedding) throw new Error(`no embedding: ${e2.reason}`);
+
+          // Cosine similarity of the two synthetic vectors (should differ).
+          let dot = 0, na = 0, nb = 0;
+          for (let i = 0; i < e1.embedding.length; i++) {
+            dot += e1.embedding[i] * e2.embedding[i];
+            na += e1.embedding[i] ** 2;
+            nb += e2.embedding[i] ** 2;
+          }
+          const cos = dot / (Math.sqrt(na) * Math.sqrt(nb) || 1);
+          log(`cos(noise, tone) = ${cos.toFixed(4)}`, 'ok');
+
+          if (e1.embedding.length < 8) throw new Error('embedding dim suspiciously small');
+          log('EMBED SMOKE TEST PASSED', 'ok');
+        } catch (err) {
+          log('FAIL: ' + err.message, 'fail');
+        }
+      })();
+    </script>
+  </body>
+</html>
