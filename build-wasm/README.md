@@ -25,9 +25,9 @@ All commands below are **bash** (Git Bash on Windows).
 
 ```bash
 # 1. emsdk (the exact version matters — sherpa-onnx pins 4.0.23)
-#    Put it OUTSIDE the project; anywhere is fine, e.g. /c/dev/emsdk
-git clone https://github.com/emscripten-core/emsdk.git /c/dev/emsdk
-cd /c/dev/emsdk
+#    Put it OUTSIDE the project; anywhere is fine, e.g. C:/Users/hazel.wilderspin/source/emsdk
+git clone https://github.com/emscripten-core/emsdk.git C:/Users/hazel.wilderspin/source/emsdk
+cd C:/Users/hazel.wilderspin/source/emsdk
 ./emsdk.bat install 4.0.23          # or: ./emsdk install 4.0.23 in Git Bash
 ./emsdk.bat activate 4.0.23
 source ./emsdk_env.sh               # makes EMSCRIPTEN + emcc available
@@ -37,32 +37,32 @@ winget install Kitware.CMake Ninja-build.Ninja
 # ...or download portable zips from GitHub releases and add their bin/ to PATH
 
 # 3. Suggested workspace layout (all outside the app repo):
-#   /c/dev/emsdk          <- emsdk
-#   /c/dev/sherpa-onnx    <- source clone
-#   /c/dev/hands-free-transcribe  <- the app (git clone)
+#   C:/Users/hazel.wilderspin/source/emsdk          <- emsdk
+#   C:/Users/hazel.wilderspin/source/sherpa-onnx    <- source clone
+#   C:/Users/hazel.wilderspin/source/hands-free-transcribe  <- the app (git clone)
 ```
 
 ## Per-build flow
 
 ```bash
-cd /c/dev
+cd C:/Users/hazel.wilderspin/source
 git clone --depth 1 https://github.com/k2-fsa/sherpa-onnx.git
 cd sherpa-onnx
 
 # apply the export-list patch
-git apply /c/dev/hands-free-transcribe/build-wasm/vad-asr-cmake.patch
+git apply C:/Users/hazel.wilderspin/source/hands-free-transcribe/build-wasm/vad-asr-cmake.patch
 
 # stage model assets + prefetch dependency tarballs
-bash /c/dev/hands-free-transcribe/build-wasm/prepare-build-assets.sh .
-bash /c/dev/hands-free-transcribe/build-wasm/fetch-build-deps.sh .
+bash C:/Users/hazel.wilderspin/source/hands-free-transcribe/build-wasm/prepare-build-assets.sh .
+bash C:/Users/hazel.wilderspin/source/hands-free-transcribe/build-wasm/fetch-build-deps.sh .
 
-# build (emsdk env must be sourced — re-run `source /c/dev/emsdk/emsdk_env.sh`
+# build (emsdk env must be sourced — re-run `source C:/Users/hazel.wilderspin/source/emsdk/emsdk_env.sh`
 # in each new shell)
-export EMSCRIPTEN=/c/dev/emsdk/upstream/emscripten
-bash /c/dev/hands-free-transcribe/build-wasm/build-plan-a.sh .
+export EMSCRIPTEN=C:/Users/hazel.wilderspin/source/emsdk/upstream/emscripten
+bash C:/Users/hazel.wilderspin/source/hands-free-transcribe/build-wasm/build-plan-a.sh .
 
 # stage the built artifacts into the app
-cd /c/dev
+cd C:/Users/hazel.wilderspin/source/hands-free-transcribe
 bash hands-free-transcribe/build-wasm/stage-plan-a-output.sh sherpa-onnx
 ```
 
@@ -72,7 +72,7 @@ After staging, run the app's smoke tests — the embedding worker boots the
 custom module and extracts an embedding from synthetic audio:
 
 ```bash
-cd /c/dev/hands-free-transcribe
+cd C:/Users/hazel.wilderspin/source/hands-free-transcribe
 npm run dev            # in one shell
 node tests/embed-smoke.mjs   # in another
 ```
